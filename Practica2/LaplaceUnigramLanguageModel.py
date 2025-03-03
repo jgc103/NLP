@@ -18,7 +18,7 @@ class LaplaceUnigramLanguageModel:
     for sentence in corpus.corpus:
       for datum in sentence.data:
         token = datum.word
-        if token != '<s>' or token != '</s>':
+        if token != '<s>' and token != '</s>':
           self.n += 1
           self.unigramCounts[token] += 1
 

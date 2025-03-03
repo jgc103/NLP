@@ -9,6 +9,7 @@ class LaplaceBigramLanguageModel:
     """Initialize your data structures in the constructor."""
     self.unigramCounts = collections.defaultdict(lambda: 0)
     self.bigramCounts = collections.defaultdict(lambda:0)
+    self.unigramCountsComplete = collections.defaultdict(lambda: 0)
     self.v = 0
     self.train(corpus)
 
@@ -20,7 +21,8 @@ class LaplaceBigramLanguageModel:
       previous_word = None
       for datum in sentence.data:
         token = datum.word
-        if token != '<s>' or token != '</s>':
+        self.unigramCountsComplete[token] += 1
+        if token != '<s>' and token != '</s>':
           self.unigramCounts[token] += 1
         if previous_word is not None:
           self.bigramCounts[(previous_word,token)]+= 1
@@ -35,7 +37,7 @@ class LaplaceBigramLanguageModel:
     previous_word = None
     for token in sentence:
       if previous_word is not None:
-        count_uni = self.unigramCounts[previous_word] + self.v
+        count_uni = self.unigramCountsComplete[previous_word] + self.v
         count_b = self.bigramCounts[(previous_word, token)] + 1
         prob = count_b / count_uni
         score += math.log(prob)
