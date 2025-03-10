@@ -12,7 +12,11 @@ class KneserNeyLanguageModel:
     self.v = 0
     self.n = 0
     self.n_b = 0
-    self.d = 2
+    self.d = 2.5
+    """
+    We have changed the value of d to 2.5 because the accuracy of the model 
+    is 0.182590 instead of 0.169851 with d = 2
+    """
 
     self.train(corpus)
 
