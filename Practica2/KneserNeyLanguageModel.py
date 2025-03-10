@@ -2,8 +2,8 @@ import math, collections
 
 class KneserNeyLanguageModel:
 
-  def __init__(self, corpus):
-    """Initialize data structures."""
+  def _init_(self, corpus):
+    """Initialize your data structures in the constructor."""
     self.unigramCounts = collections.defaultdict(lambda: 0)
     self.unigramCountsComplete = collections.defaultdict(lambda: 0)
     self.bigramCounts = collections.defaultdict(lambda: 0)
@@ -12,12 +12,12 @@ class KneserNeyLanguageModel:
     self.v = 0
     self.n = 0
     self.n_b = 0
-    self.d = 2  # Discount factor explicitly set to 2
+    self.d = 2
 
     self.train(corpus)
 
   def train(self, corpus):
-    """ Takes a corpus and trains your language model. 
+    """ Takes a corpus and trains your language model.
         Compute any counts or other corpus statistics in this function.
     """
     word_predecessors = collections.defaultdict(set)
@@ -48,33 +48,27 @@ class KneserNeyLanguageModel:
     for word, continuations in word_continuations.items():
       self.continuationCounts[word] = len(continuations)
 
+
+
   def score(self, sentence):
-    """ Takes a list of strings as argument and returns the log-probability of the 
+    """ Takes a list of strings as argument and returns the log-probability of the
         sentence using your language model. Use whatever data you computed in train() here.
     """
     score = 0.0
     previous_word = None
 
     for token in sentence:
-            if previous_word is not None:
-                bigram_count = self.bigramCounts[(previous_word, token)]
-                discount = max(bigram_count - self.d, 0)
-                unigram_complete_count = self.unigramCountsComplete[previous_word]
-                
-                if unigram_complete_count > 0:
-                    lambda_w = (self.d / unigram_complete_count) * len(self.bigramCounts)
-                else:
-                    lambda_w = 0  # Avoid division by zero
-                
-                p_continuation = self.continuationCounts[token] / self.n_b if self.n_b > 0 else (1 / (self.n + self.v))
-                
-                prob = (discount / unigram_complete_count) if unigram_complete_count > 0 else 0
-                prob += lambda_w * p_continuation
-                
-                if prob <= 0:  # Backoff to add-one smoothed unigram probability
-                    prob = (self.unigramCounts[token] + 1) / (self.n + self.v)
+      if previous_word is not None:
+        numerator = max(self.bigramCounts[(previous_word, token)] - self.d, 0) + self.d * self.continuationCounts[previous_word] * self.predecessorCounts[token] / self.n_b
 
-                score += math.log(prob)
-            previous_word = token
+        if numerator > 0:
+          count_uni = self.unigramCountsComplete[previous_word]
+          prob = numerator / count_uni
 
+        else:
+          count = self.unigramCounts[token] + 1
+          prob = count / (self.n + self.v)
+
+        score += math.log(prob)
+      previous_word = token
     return score
