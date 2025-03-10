@@ -5,7 +5,6 @@ class LaplaceUnigramLanguageModel:
 
   def __init__(self, corpus):
     """Initialize your data structures in the constructor."""
-    # TODO your code here
     self.unigramCounts = collections.defaultdict(lambda: 0)
     self.v = 0
     self.n = 0
@@ -29,16 +28,10 @@ class LaplaceUnigramLanguageModel:
     """ Takes a list of strings as argument and returns the log-probability of the 
         sentence using your language model. Use whatever data you computed in train() here.
     """
-    score = 1
+    score = 0.0
     for token in sentence:
-      count = self.unigramCounts[token] + 1
-      prob = count / (self.n + self.v)
-      score += math.log(prob)
+      if token != '<s>' and token != '</s>':
+        count = self.unigramCounts[token] + 1
+        prob = count / (self.n + self.v)
+        score += math.log(prob)
     return score
-
-
-
-
-
-
-
