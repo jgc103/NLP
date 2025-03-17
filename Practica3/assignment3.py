@@ -32,7 +32,7 @@ class NaiveBayes:
 
   def __init__(self):
     """NaiveBayes initialization"""
-    self.FILTER_STOP_WORDS = False
+    self.FILTER_STOP_WORDS = False # TODO Setting the value to True decreases the accuracy to 0.811
     self.stopList = set(self.readFile('./data/english.stop'))
     self.numFolds = 10
     self.vocab=set([])
