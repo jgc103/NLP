@@ -1,8 +1,8 @@
 # NLP Programming Assignment #3
 # NaiveBayes
 #
-# The area for you to implement is marked with TODO!
-# Generally, you should not need to touch things *not* marked TODO
+# The area for you to implement is marked with
+# Generally, you should not need to touch things *not* marked
 #
 
 
@@ -40,29 +40,47 @@ class NaiveBayes:
     self.countsneg=collections.defaultdict(lambda:0)
     self.prior=[0.0,0.0]
 
-  #############################################################################
-  # TODO TODO TODO TODO TODO 
-  
+
   def classify(self, words):
-    """ TODO
+    """
       'words' is a list of words to classify. Return 'pos' or 'neg' classification.
     """
-    return 'pos'
+    total_docs = self.prior[0] + self.prior[1]
+    log_prob_pos = math.log(self.prior[0] / total_docs)
+    log_prob_neg = math.log(self.prior[1] / total_docs)
+
+    total_pos_words = sum(self.countspos.values())
+    total_neg_words = sum(self.countsneg.values())
+    v = len(self.vocab)
+
+    for word in words:
+      log_prob_pos += math.log((self.countspos[word] + 1) / (total_pos_words + v + 1))
+      log_prob_neg += math.log((self.countsneg[word] + 1) / (total_neg_words + v + 1))
+
+    if log_prob_pos > log_prob_neg:
+      return 'pos'
+    else:
+      return 'neg'
   
 
   def addExample(self, klass, words):
     """
-     * TODO
      * Train your model on an example document with label klass ('pos' or 'neg') and
      * words, a list of strings.
      * You should store whatever data structures you use for your classifier 
      * in the NaiveBayes class.
      * Returns nothing
     """
-    pass 
-        
-  # TODO TODO TODO TODO TODO 
-  #############################################################################
+    if klass == 'pos':
+      self.prior[0] += 1
+      for word in words:
+        self.countspos[word] += 1
+        self.vocab.add(word)
+    elif klass == 'neg':
+      self.prior[1] += 1
+      for word in words:
+        self.countsneg[word] += 1
+        self.vocab.add(word)
   
   
   def readFile(self, fileName):
