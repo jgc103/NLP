@@ -145,11 +145,11 @@ class IRSystem:
         #       Granted this may not be a linked list as in a proper
         #       implementation.
 
+        self.inv_index = defaultdict(lambda:[])
+        for doc_id, doc in enumerate(self.docs):
+            for word in set(doc):
+                self.inv_index[word].append(doc_id)
 
-        inv_index = defaultdict(lambda:[])
-
-        # ------------------------------------------------------------------
-        self.inv_index = inv_index
 
 
 
@@ -173,12 +173,35 @@ class IRSystem:
         # TODO: Implement Boolean retrieval. You will want to use your
         #       inverted index that you created in index().
         # Right now this just returns all the possible documents!
-        docs = list(range(len(self.docs)))
+        #docs = list(range(len(self.docs)))
 
-        # ------------------------------------------------------------------
+        #----------------------------------------
 
-        return docs  
-    
+        if not query:
+            return []
+
+        query = list(set(query))
+
+        # Intersectar las listas directamente en este método
+
+        result = self.inv_index[query[0]]
+        for w in query[1:]:
+            doc_list = self.inv_index[w]
+            i, j = 0, 0
+            temp_result = []
+            while i < len(result) and j < len(doc_list):
+                if result[i] == doc_list[j]:
+                    temp_result.append(result[i])
+                    i += 1
+                    j += 1
+                elif result[i] < doc_list[j]:
+                    i += 1
+                else:
+                    j += 1
+            result = temp_result
+
+        return result
+
     def compute_tfidf(self):
         print("Calculating tf-idf...")
         # -------------------------------------------------------------------
@@ -192,10 +215,19 @@ class IRSystem:
         #       word actually occurs in the document.
 
         tfidf = defaultdict(lambda:0)
+        #wt,d = (1+log10tft,d)×log10(N/dft)
+        for w in self.inv_index:
+
+
+
 
 
         # ------------------------------------------------------------------
         self.tfidf = tfidf
+
+
+
+
 
     def get_tfidf_unstemmed(self, word, document):
         """
