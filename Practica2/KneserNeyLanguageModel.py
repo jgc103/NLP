@@ -2,7 +2,7 @@ import math, collections
 
 class KneserNeyLanguageModel:
 
-  def _init_(self, corpus):
+  def __init__(self, corpus):
     """Initialize your data structures in the constructor."""
     self.unigramCounts = collections.defaultdict(lambda: 0)
     self.unigramCountsComplete = collections.defaultdict(lambda: 0)
