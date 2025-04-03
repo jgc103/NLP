@@ -215,12 +215,20 @@ class IRSystem:
         #       word actually occurs in the document.
 
         tfidf = defaultdict(lambda:0)
-        #wt,d = (1+log10tft,d)×log10(N/dft)
-        for w in self.inv_index:
+        N = len(self.docs)
 
+        for d, doc in enumerate(self.docs):
 
+            freq = defaultdict(int)
+            for word in doc:
+                freq[word] += 1
 
+            for word, count in freq.items():
+                tf = 1 + math.log10(count)
 
+                dft = len(self.inv_index[word])
+                idf = math.log10(N / dft) if dft > 0 else 0
+                tfidf[(word, d)] = tf * idf
 
         # ------------------------------------------------------------------
         self.tfidf = tfidf
