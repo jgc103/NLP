@@ -4,7 +4,7 @@ import math
 import os
 import re
 import sys
-from collections import defaultdict
+from collections import defaultdict, Counter
 from PorterStemmer import PorterStemmer
 
 
@@ -214,25 +214,31 @@ class IRSystem:
         #       word-document pair, but rather just for those pairs where a
         #       word actually occurs in the document.
 
-        tfidf = defaultdict(lambda:0)
-        N = len(self.docs)
+        self.tfidf = defaultdict(float)
+        self.document_tf_idf = defaultdict(lambda: defaultdict(float))
+        self.document_norms = defaultdict(float)
+        total_docs = len(self.docs)
 
-        for d, doc in enumerate(self.docs):
+        for doc_id, words in enumerate(self.docs):
+            # Contar la frecuencia de cada palabra manualmente
+            word_counts = {}
+            for word in words:
+                if word in word_counts:
+                    word_counts[word] += 1
+                else:
+                    word_counts[word] = 1
 
-            freq = defaultdict(int)
-            for word in doc:
-                freq[word] += 1
+            for word, count in word_counts.items():
+                tf_value = 1 + math.log10(count)
+                doc_freq = len(self.inv_index[word])
+                idf_value = math.log10(total_docs / doc_freq) if doc_freq > 0 else 0
+                tfidf_value = tf_value * idf_value
+                self.tfidf[(word, doc_id)] = tfidf_value
+                self.document_tf_idf[doc_id][word] = tfidf_value
+                self.document_norms[doc_id] += tfidf_value ** 2
 
-            for word, count in freq.items():
-                tf = 1 + math.log10(count)
 
-                dft = len(self.inv_index[word])
-                idf = math.log10(N / dft) if dft > 0 else 0
-                tfidf[(word, d)] = tf * idf
-
-        # ------------------------------------------------------------------
-        self.tfidf = tfidf
-
+            self.document_norms[doc_id] = math.sqrt(self.document_norms[doc_id])
 
 
 
@@ -246,34 +252,39 @@ class IRSystem:
         word = self.p.stem(word)
         return self.tfidf[(word,document)]
 
-
     def rank_retrieve(self, query):
         """
         Given a query (a list of words), return a rank-ordered list of
         documents (by ID) and score for the query.
         """
-        scores = [0.0 for xx in range(len(self.docs))]
-        # ------------------------------------------------------------------
-        # TODO: Implement cosine similarity between a document and a list of
-        #       query words.
+        query_counts = {}
+        for term in query:
+            if term in query_counts:
+                query_counts[term] += 1
+            else:
+                query_counts[term] = 1
 
-        # Right now, this code simply gets the score by taking the Jaccard
-        # similarity between the query and every document.
-        words_in_query = set(query)
+        query_vector = {}
+        for term, count in query_counts.items():
+            if term in self.vocab:
+                query_vector[term] = 1 + math.log10(count)
 
-        for d, doc in enumerate(self.docs):
-            words_in_doc = set(doc)
-            scores[d] = len(words_in_query.intersection(words_in_doc)) \
-                    / float(len(words_in_query.union(words_in_doc)))
+        scores = defaultdict(float)
+        for term, weight in query_vector.items():
+            if term not in self.inv_index:
+                continue
+            for doc_id in self.inv_index[term]:
+                term_weight_doc = self.document_tf_idf[doc_id].get(term, 0)
+                scores[doc_id] += weight * term_weight_doc
 
-        # ------------------------------------------------------------------
+        ranked_results = []
+        for doc_id, score in scores.items():
+            norm = self.document_norms[doc_id]
+            similarity = score / norm if norm > 0 else 0.0
+            ranked_results.append((doc_id, similarity))
 
-        ranking = [idx for idx, sim in sorted(enumerate(scores),
-            key = lambda xx : xx[1], reverse = True)]
-        results = []
-        for i in range(10):
-            results.append((ranking[i], scores[ranking[i]]))
-        return results
+        ranked_results.sort(key=lambda x: x[1], reverse=True)
+        return ranked_results[:10]
 
 
     def process_query(self, query_str):
