@@ -1,6 +1,10 @@
 import collections
 import copy
 import optparse
+from operator import truediv
+
+from alembic.script.revision import tuple_rev_as_scalar
+from nltk import nonterminals
 
 from ling.Tree import Tree
 import ling.Trees as Trees
@@ -30,8 +34,47 @@ class PCFGParser(Parser):
         self.grammar = Grammar(train_trees)
 
     def get_best_parse(self, sentence):
-        score = {}
-        back = {}
+        score = defaultdict(lambda: defaultdict(lambda:0))
+        back = defaultdict(lambda: defaultdict(lambda:[]))
+
+        for i in range(len(sentence)):
+            tags = self.lexicon.get_all_tags()
+            for A in tags:
+                prob = self.lexicon.score_tagging(sentence[i], A)
+                if prob > 0:
+                    score[(i, i + 1)][A] = prob
+            # handle unaries
+            added = True
+            while added:
+                added = False
+                for A, B in nonterminals():
+                    prob = self.lexicon.score_tagging(A, B) * score[(i, i + 1)][B]
+                    if prob > score[(i, i + 1)][A]:
+                        score[(i, i + 1)][A] = prob
+                        back[(i, i + 1)][A] = B
+                        added = True
+
+        for span in range(2, len(sentence) + 1):
+            for begin in range(0, len(sentence) + 1):
+                end = begin + span
+                for split in range(begin + 1, end):
+                    for A, B, C in nonterminals():
+                        prob = score[begin][split][B] * score[split][end][C] * (self.lexicon.score_tagging(A, B) * self.lexicon.score_tagging(A, C))
+                        if prob > score[begin][end][A]:
+                            score[begin][end][A] = prob
+                            back[begin][end][A] = (split, B, C)
+                # handle unaries
+                added = True
+                while added:
+                    added = False
+                    for A. B in nonterminals():
+                        prob = self.lexicon.score_tagging(A, B) * score[begin][end][B]
+                        if prob > score[begin][end][A]:
+                            score[begin][end][A] = prob
+                            back[begin][end][A] = B
+                            added = True
+        return score, back
+ 
 
         for i, word in enumerate(sentence):
             score[i] = {}
@@ -44,7 +87,7 @@ class PCFGParser(Parser):
                 if prob > 0:
                     score[i][tag] = prob
                     back[i][tag] = f"{tag} -> '{word}'"
-                    print(f"  Etiqueta: {tag} con probabilidad {prob:.4f} | Back pointer: {back[i][tag]}")
+                    print(f"  Etiqueta: {tag}: {prob:.4f} | {back[i][tag]}")
 
 
         print("\nTabla de score completa:")
