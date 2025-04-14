@@ -29,17 +29,33 @@ class PCFGParser(Parser):
         self.lexicon = Lexicon(train_trees)
         self.grammar = Grammar(train_trees)
 
-
     def get_best_parse(self, sentence):
-        """
-        Should return a Tree.
-        'sentence' is a list of strings (words) that form a sentence.
-        """
-        # TODO: implement this method
-        #######################################
-        tree=Tree("ROOT",[Tree("S")])
-        #######################################
-        return TreeBinarization.unbinarize_tree(tree)
+        score = {}
+        back = {}
+
+        for i, word in enumerate(sentence):
+            score[i] = {}
+            back[i] = {}
+            print(f"Palabra '{word}' {i}:")
+
+
+            for tag in self.lexicon.get_all_tags():
+                prob = self.lexicon.score_tagging(word, tag)
+                if prob > 0:
+                    score[i][tag] = prob
+                    back[i][tag] = f"{tag} -> '{word}'"
+                    print(f"  Etiqueta: {tag} con probabilidad {prob:.4f} | Back pointer: {back[i][tag]}")
+
+
+        print("\nTabla de score completa:")
+        for i in score:
+            print(f"score[{i}]: {score[i]}")
+
+        print("\nTabla de back completa:")
+        for i in back:
+            print(f"back[{i}]: {back[i]}")
+
+        return Tree("ROOT", [Tree("S")])
 
 
 class BaselineParser(Parser):
@@ -455,7 +471,7 @@ def read_masc_trees(base_path, low=None, high=None):
 if __name__ == '__main__':
     opt_parser = optparse.OptionParser()
     opt_parser.add_option("--data", dest="data", default = "miniTest") #change default value ("miniTest") to "masc"
-    opt_parser.add_option("--parser", dest="parser",default="BaselineParser") # change default value ("BaselineParser") to "PCFGParser"
+    opt_parser.add_option("--parser", dest="parser",default="PCFGParser") # change default value ("BaselineParser") to "PCFGParser"
     opt_parser.add_option("--maxLength", dest="max_length",default="20") 
 
     (options, args) = opt_parser.parse_args()
