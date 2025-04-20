@@ -46,13 +46,14 @@ class PCFGParser(Parser):
             # Clausura unaria para span (i,i+1)
             added = True
             while added:
-                added = False
-                for B, pB in list(score[(i, i + 1)].items()):
-                    for rule in self.grammar.get_unary_rules_by_child(B):
-                        A = rule.parent
-                        p = rule.score * pB
-                        if p > score[(i, i + 1)].get(A, 0):
-                            score[(i, i + 1)][A] = p
+                for rule in self.grammar.unary_rules_by_child.values():
+                    for unary_rule in rule:
+                        A = unary_rule.parent
+                        B = unary_rule.child
+
+                        prob = unary_rule.score * score[(i, i + 1)][B]
+                        if prob > score[(i, i + 1)].get(A, 0):
+                            score[(i, i + 1)][A] = prob
                             back[(i, i + 1)][A] = B
                             added = True
 
@@ -67,11 +68,10 @@ class PCFGParser(Parser):
                             A = rule.parent
                             B = rule.left_child
                             C = rule.right_child
-                            if score[(begin, split)].get(B, 0) > 0 and score[(split, end)].get(C, 0) > 0:
-                                prob = rule.score * score[(begin, split)][B] * score[(split, end)][C]
-                                if prob > score[(begin, end)].get(A, 0):
-                                    score[(begin, end)][A] = prob
-                                    back[(begin, end)][A] = (split, B, C)
+                            prob = rule.score * score[(begin, split)][B] * score[(split, end)][C]
+                            if prob > score[(begin, end)].get(A, 0):
+                                score[(begin, end)][A] = prob
+                                back[(begin, end)][A] = list((split, B, C))
 
                 added = True
                 while added:
@@ -87,35 +87,30 @@ class PCFGParser(Parser):
                                     back[(begin, end)][A] = B
                                     added = True
 
-        # 3. Reconstrucción del árbol
-        full_span = (0, n)
-        if not score[full_span]:
-            return Tree('ROOT', [])
-
-        # Elegir la raíz
-        root = self.start_symbol if hasattr(self, 'start_symbol') and self.start_symbol in score[full_span] else max(score[full_span], key=score[full_span].get)
-
-        def build_tree(i, j, A):
-            entry = back[(i, j)].get(A)
-            # Caso preterminal
-            if j == i + 1:
-                if isinstance(entry, str):  # unaria
-                    return Tree(A, [build_tree(i, j, entry)])
-                return Tree(A, [Tree(sentence[i])])
-            # Caso binario
-            if isinstance(entry, tuple):
-                split, B, C = entry
-                left = build_tree(i, split, B)
-                right = build_tree(split, j, C)
-                return Tree(A, [left, right])
-            # Caso unario en spans >1
+        # 3) Reconstrucción del árbol
+        def build_tree(i, j, X):
+            entry = back[(i, j)].get(X)
+            if entry is None:
+                return Tree(X)
             if isinstance(entry, str):
-                return Tree(A, [build_tree(i, j, entry)])
-            # Sin backpointer válido
-            return Tree(A, [])
+                return Tree(X, [Tree(entry)])
+            if len(entry) == 1:
+                (B,) = entry
+                return Tree(X, [build_tree(i, j, B)])
+            split, B, C = entry
+            left = build_tree(i, split, B)
+            right = build_tree(split, j, C)
+            return Tree(X, [left, right])
 
-        tree = build_tree(0, n, root)
-        return Tree('ROOT', [tree])
+        root_cell = score[(0, n)]
+        if not root_cell:
+            return None
+        if 'S' in root_cell:
+            root = 'S'
+        else:
+            root = max(root_cell, key=root_cell.get, default='S')
+        tree = Tree('ROOT', [build_tree(0, n, root)])
+        return TreeBinarization.unbinarize_tree(tree)
 
 
 

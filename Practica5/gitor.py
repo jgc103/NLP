@@ -31,92 +31,77 @@ class PCFGParser(Parser):
         self.grammar = Grammar(train_trees)
 
     def get_best_parse(self, sentence):
-        n = len(sentence)
-        # Inicialización según pseudocódigo asegurado como correcto por el usuario
-        score = defaultdict(lambda: defaultdict(lambda: 0))
-        back = defaultdict(lambda: defaultdict(lambda: []))
+        score = defaultdict(lambda: defaultdict(lambda: 0.0))
+        back = defaultdict(lambda: defaultdict(lambda: None))
 
-        # 1. Llenar celdas de longitud 1 (lexical)
         for i in range(len(sentence)):
-            tags = self.lexicon.get_all_tags()
-            for A in tags:
-                prob = self.lexicon.score_tagging(sentence[i], A)
-                if prob > 0:
-                    score[(i, i + 1)][A] = prob
-            # Clausura unaria para span (i,i+1)
+            for A in self.lexicon.get_all_tags():
+                p = self.lexicon.score_tagging(sentence[i], A)
+                if p > 0.0:
+                    score[(i, i + 1)][A] = p
+                    back[(i, i + 1)][A] = sentence[i]
             added = True
             while added:
                 added = False
                 for B, pB in list(score[(i, i + 1)].items()):
                     for rule in self.grammar.get_unary_rules_by_child(B):
                         A = rule.parent
-                        p = rule.score * pB
-                        if p > score[(i, i + 1)].get(A, 0):
+                        p = pB * rule.score
+                        if p > score[(i, i + 1)].get(A, 0.0):
                             score[(i, i + 1)][A] = p
-                            back[(i, i + 1)][A] = B
+                            back[(i, i + 1)][A] = (B,)
                             added = True
 
-        # 2. CKY dinámico para spans mayores
-        for span in range(2, n + 1):
-            for begin in range(0, n - span + 1):
+        for span in range(2, len(sentence) + 1):
+            for begin in range(len(sentence) - span + 1):
                 end = begin + span
-                # Aplicar reglas binarias
                 for split in range(begin + 1, end):
-                    for rule_list in self.grammar.binary_rules_by_left_child.values():
-                        for rule in rule_list:
-                            A = rule.parent
-                            B = rule.left_child
+                    for B, pB in score[(begin, split)].items():
+                        for rule in self.grammar.get_binary_rules_by_left_child(B):
                             C = rule.right_child
-                            if score[(begin, split)].get(B, 0) > 0 and score[(split, end)].get(C, 0) > 0:
-                                prob = rule.score * score[(begin, split)][B] * score[(split, end)][C]
-                                if prob > score[(begin, end)].get(A, 0):
-                                    score[(begin, end)][A] = prob
-                                    back[(begin, end)][A] = (split, B, C)
-
+                            A = rule.parent
+                            pC = score[(split, end)].get(C, 0.0)
+                            if pC == 0.0:
+                                continue
+                            p = pB * pC * rule.score
+                            if p > score[(begin, end)].get(A, 0.0):
+                                score[(begin, end)][A] = p
+                                back[(begin, end)][A] = (split, B, C)
                 added = True
                 while added:
                     added = False
-                    for rule in self.grammar.unary_rules_by_child.values():
-                        for unary_rule in rule:
-                            A = unary_rule.parent
-                            B = unary_rule.child
-                            if score[(begin, end)].get(B, 0) > 0:
-                                prob = unary_rule.score * score[(begin, end)][B]
-                                if prob > score[(begin, end)].get(A, 0):
-                                    score[(begin, end)][A] = prob
-                                    back[(begin, end)][A] = B
-                                    added = True
+                    for B, pB in list(score[(begin, end)].items()):
+                        for rule in self.grammar.get_unary_rules_by_child(B):
+                            A = rule.parent
+                            p = pB * rule.score
+                            if p > score[(begin, end)].get(A, 0.0):
+                                score[(begin, end)][A] = p
+                                back[(begin, end)][A] = (B,)
+                                added = True
 
-        # 3. Reconstrucción del árbol
-        full_span = (0, n)
-        if not score[full_span]:
-            return Tree('ROOT', [])
-
-        # Elegir la raíz
-        root = self.start_symbol if hasattr(self, 'start_symbol') and self.start_symbol in score[full_span] else max(score[full_span], key=score[full_span].get)
-
-        def build_tree(i, j, A):
-            entry = back[(i, j)].get(A)
-            # Caso preterminal
-            if j == i + 1:
-                if isinstance(entry, str):  # unaria
-                    return Tree(A, [build_tree(i, j, entry)])
-                return Tree(A, [Tree(sentence[i])])
-            # Caso binario
-            if isinstance(entry, tuple):
-                split, B, C = entry
-                left = build_tree(i, split, B)
-                right = build_tree(split, j, C)
-                return Tree(A, [left, right])
-            # Caso unario en spans >1
+        def build_tree(i, j, X):
+            entry = back[(i, j)].get(X)
+            if entry is None:
+                return Tree(X)
             if isinstance(entry, str):
-                return Tree(A, [build_tree(i, j, entry)])
-            # Sin backpointer válido
-            return Tree(A, [])
+                return Tree(X, [Tree(entry)])
+            if len(entry) == 1:
+                (B,) = entry
+                return Tree(X, [build_tree(i, j, B)])
+            split, B, C = entry
+            left = build_tree(i, split, B)
+            right = build_tree(split, j, C)
+            return Tree(X, [left, right])
 
-        tree = build_tree(0, n, root)
-        return Tree('ROOT', [tree])
-
+        root_cell = score[(0, len(sentence))]
+        if not root_cell:
+            return None
+        if 'S' in root_cell:
+            root = 'S'
+        else:
+            root = max(root_cell, key=root_cell.get, default='S')
+        tree = Tree('ROOT', [build_tree(0, len(sentence), root)])
+        return TreeBinarization.unbinarize_tree(tree)
 
 
 class BaselineParser(Parser):
@@ -512,9 +497,10 @@ def read_masc_trees(base_path, low=None, high=None):
 
 if __name__ == '__main__':
     opt_parser = optparse.OptionParser()
-    opt_parser.add_option("--data", dest="data", default = "miniTest") #change default value ("miniTest") to "masc"
-    opt_parser.add_option("--parser", dest="parser",default="PCFGParser") # change default value ("BaselineParser") to "PCFGParser"
-    opt_parser.add_option("--maxLength", dest="max_length",default="20")
+    opt_parser.add_option("--data", dest="data", default="masc")  # change default value ("miniTest") to "masc"
+    opt_parser.add_option("--parser", dest="parser",
+                          default="PCFGParser")  # change default value ("BaselineParser") to "PCFGParser"
+    opt_parser.add_option("--maxLength", dest="max_length", default="20")
 
     (options, args) = opt_parser.parse_args()
     options = vars(options)
@@ -536,7 +522,6 @@ if __name__ == '__main__':
     test_trees = []
 
     if data_set == 'miniTest':
-
         # training data: first 3 of 4 datums
         print("Loading training trees...")
         train_trees = read_trees('./data/parser/miniTest', 1, 3)
@@ -548,16 +533,15 @@ if __name__ == '__main__':
         print("done.")
 
     if data_set == "masc":
-
         # training data: MASC train
         print("Loading MASC training trees... from: ./data/parser/masc/train")
         train_trees.extend(read_masc_trees("./data/parser/masc/train", 0, 34))
         print("done.")
         print("Train trees size: %d" % len(train_trees))
         print("First train tree: %s" % \
-                Trees.PennTreeRenderer.render(train_trees[0]))
+              Trees.PennTreeRenderer.render(train_trees[0]))
         print("Last train tree: %s" % \
-                Trees.PennTreeRenderer.render(train_trees[-1]))
+              Trees.PennTreeRenderer.render(train_trees[-1]))
 
         # test data: MASC devtest
         print("Loading MASC test trees... from: ./data/parser/masc/devtest")
@@ -565,10 +549,9 @@ if __name__ == '__main__':
         print("done.")
         print("Test trees size: %d" % len(test_trees))
         print("First test tree: %s" % \
-                Trees.PennTreeRenderer.render(test_trees[0]))
+              Trees.PennTreeRenderer.render(test_trees[0]))
         print("Last test tree: %s" % \
-                Trees.PennTreeRenderer.render(test_trees[-1]))
-
+              Trees.PennTreeRenderer.render(test_trees[-1]))
 
     if data_set not in ["miniTest", "masc"]:
         raise Exception("Bad data set: %s: use miniTest or masc." % data_set)
