@@ -96,12 +96,11 @@ class PCFGParser(Parser):
         root_cell = score[(0, len(sentence))]
         if not root_cell:
             return None
-        if 'S' in root_cell:
-            root = 'S'
+        if 'ROOT' in score[(0, len(sentence))]:
+            tree = build_tree(0, len(sentence), 'ROOT')
+            return TreeBinarization.unbinarize_tree(tree)
         else:
-            root = max(root_cell, key=root_cell.get, default='S')
-        tree = Tree('ROOT', [build_tree(0, len(sentence), root)])
-        return TreeBinarization.unbinarize_tree(tree)
+            return None
 
 
 class BaselineParser(Parser):
