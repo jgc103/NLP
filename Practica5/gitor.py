@@ -76,7 +76,7 @@ class PCFGParser(Parser):
                             p = pB * rule.score
                             if p > score[(begin, end)].get(A, 0.0):
                                 score[(begin, end)][A] = p
-                                back[(begin, end)][A] = (B,)
+                                back[(begin, end)][A] = (B,) # type: ignore
                                 added = True
 
         def build_tree(i, j, X):

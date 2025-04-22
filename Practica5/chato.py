@@ -31,86 +31,109 @@ class PCFGParser(Parser):
         self.grammar = Grammar(train_trees)
 
     def get_best_parse(self, sentence):
-        n = len(sentence)
+        nonterms = list(
+            set(
+                [
+                    rule.parent
+                    for rules in self.grammar.unary_rules_by_child.values()
+                    for rule in rules
+                ]
+                + [
+                    rule.parent
+                    for rules in self.grammar.binary_rules_by_left_child.values()
+                    for rule in rules
+                ]
+                + [
+                    rule.parent
+                    for rules in self.grammar.binary_rules_by_right_child.values()
+                    for rule in rules
+                ]
+                + self.lexicon.get_all_tags()
+            )
+        )
         score = defaultdict(lambda: defaultdict(lambda: 0.0))
-        back = defaultdict(lambda: defaultdict(lambda: None))
+        back = defaultdict(lambda: defaultdict(lambda: []))
+        tags = self.lexicon.get_all_tags()
 
-        # 1) Inicialización léxica
-        for i in range(n):
-            for A in self.lexicon.get_all_tags():
-                p = self.lexicon.score_tagging(sentence[i], A)
-                if p > 0.0:
-                    score[(i, i + 1)][A] = p
-                    back[(i, i + 1)][A] = sentence[i]
+        for i in range(len(sentence)):
+            for A in tags:
+                prob = self.lexicon.score_tagging(sentence[i], A)
 
-            # Aplicar unary closure directamente
+                if prob > 0:
+                    score[(i, i + 1)][A] = prob
+
+            # Handle unaries
             added = True
             while added:
                 added = False
-                for B, pB in list(score[(i, i + 1)].items()):
-                    for rule in self.grammar.get_unary_rules_by_child(B):
+
+                for B in nonterms:
+                    unary_rules = self.grammar.get_unary_rules_by_child(B)
+
+                    for rule in unary_rules:
                         A = rule.parent
-                        p = pB * rule.score
-                        if p > score[(i, i + 1)].get(A, 0.0):
-                            score[(i, i + 1)][A] = p
-                            back[(i, i + 1)][A] = (B,)
+                        prob = rule.score * score[(i, i + 1)][B]
+
+                        if prob > score[(i, i + 1)][A]:
+                            score[(i, i + 1)][A] = prob
+                            back[(i, i + 1)][A] = [B]
                             added = True
 
-        # 2) Programación dinámica CKY
-        for span in range(2, n + 1):
-            for begin in range(n - span + 1):
+        for span in range(2, len(sentence) + 1):
+            for begin in range(len(sentence) - span + 1):
                 end = begin + span
+
                 for split in range(begin + 1, end):
-                    for B, pB in score[(begin, split)].items():
-                        for rule in self.grammar.get_binary_rules_by_left_child(B):
+                    for B in nonterms:
+                        binary_rules = self.grammar.get_binary_rules_by_left_child(B)
+
+                        for rule in binary_rules:
                             C = rule.right_child
                             A = rule.parent
-                            pC = score[(split, end)].get(C, 0.0)
-                            if pC == 0.0:
-                                continue
-                            p = pB * pC * rule.score
-                            if p > score[(begin, end)].get(A, 0.0):
-                                score[(begin, end)][A] = p
-                                back[(begin, end)][A] = (split, B, C)
+                            prob = (
+                                    score[(begin, split)][B]
+                                    * score[(split, end)][C]
+                                    * rule.score
+                            )
 
-                # Aplicar unary closure directamente
+                            if prob > score[(begin, end)][A]:
+                                score[(begin, end)][A] = prob
+                                back[(begin, end)][A] = [split, B, C]
+                # Handle unaries
                 added = True
                 while added:
                     added = False
-                    for B, pB in list(score[(begin, end)].items()):
-                        for rule in self.grammar.get_unary_rules_by_child(B):
+                    for B in nonterms:
+                        unary_rules = self.grammar.get_unary_rules_by_child(B)
+                        for rule in unary_rules:
                             A = rule.parent
-                            p = pB * rule.score
-                            if p > score[(begin, end)].get(A, 0.0):
-                                score[(begin, end)][A] = p
-                                back[(begin, end)][A] = (B,)
+                            prob = rule.score * score[(begin, end)][B]
+
+                            if prob > score[(begin, end)][A]:
+                                score[(begin, end)][A] = prob
+                                back[(begin, end)][A] = [B]
                                 added = True
 
-        # 3) Reconstrucción del árbol
-        def build_tree(i, j, X):
-            entry = back[(i, j)].get(X)
-            if entry is None:
-                return Tree(X)
-            if isinstance(entry, str):
-                return Tree(X, [Tree(entry)])
-            if len(entry) == 1:
-                (B,) = entry
-                return Tree(X, [build_tree(i, j, B)])
-            split, B, C = entry
-            left = build_tree(i, split, B)
-            right = build_tree(split, j, C)
-            return Tree(X, [left, right])
+        tree = self.build_tree(sentence, back, 0, len(sentence), "ROOT")
 
-        root_cell = score[(0, n)]
-        if not root_cell:
-            return None
-        if 'S' in root_cell:
-            root = 'S'
-        else:
-            root = max(root_cell, key=root_cell.get, default='S')
-        tree = Tree('ROOT', [build_tree(0, n, root)])
+        #######################################
         return TreeBinarization.unbinarize_tree(tree)
 
+    def build_tree(self, sentence, back, begin, end, var):
+        if var not in back[(begin, end)].keys():
+            return Tree(var, [Tree(sentence[begin])])
+        l = back[(begin, end)][var]
+        if len(l) == 1:
+            A = l[0]
+            t = self.build_tree(sentence, back, begin, end, A)
+            return Tree(var, [t])
+        if len(l) == 3:
+            split = l[0]
+            B = l[1]
+            C = l[2]
+            t1 = self.build_tree(sentence, back, begin, split, B)
+            t2 = self.build_tree(sentence, back, split, end, C)
+            return Tree(var, [t1, t2])
 
 class BaselineParser(Parser):
 
