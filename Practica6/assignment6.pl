@@ -1,90 +1,45 @@
-% --------------------------
-% Vocabulario como hechos
-% --------------------------
+% LEXICON
 
-lex(det, la, f-sg).
-lex(det, las, f-pl).
-lex(det, el, m-sg).
-lex(det, los, m-pl).
-lex(det, una, f-sg).
-lex(det, unas, f-pl).
-lex(det, un, m-sg).
-lex(det, unos, m-pl).
+lex(la,   det(feminine,  singular)).
+lex(las,  det(feminine,  plural)).
+lex(el,   det(masculine, singular)).
+lex(los,  det(masculine, plural)).
+lex(una,  det(feminine,  singular)).
+lex(unas, det(feminine,  plural)).
+lex(un,   det(masculine, singular)).
+lex(unos, det(masculine, plural)).
 
-lex(n, perra, f-sg).
-lex(n, perras, f-pl).
-lex(n, perro, m-sg).
-lex(n, perros, m-pl).
-lex(n, hueso, m-sg).
-lex(n, huesos, m-pl).
-lex(n, estudiante, f-sg).
-lex(n, estudiante, m-sg).
+lex(perra,      noun(feminine,  singular)).
+lex(perras,     noun(feminine,  plural)).
+lex(perro,      noun(masculine, singular)).
+lex(perros,     noun(masculine, plural)).
+lex(hueso,      noun(masculine, singular)).
+lex(huesos,     noun(masculine, plural)).
+lex(estudiante, noun(_,  singular)).
 
-lex(adj, bonita, f-sg).
-lex(adj, bonito, m-sg).
-lex(adj, bonitas, f-pl).
-lex(adj, bonitos, m-pl).
+lex(bonita,  adjective(feminine,  singular)).
+lex(bonitas, adjective(feminine,  plural)).
+lex(bonito,  adjective(masculine, singular)).
+lex(bonitos, adjective(masculine, plural)).
 
-lex(vt, muerde, sg).
-lex(vt, muerden, pl).
+lex(muerde,  verb(transitive, singular)).
+lex(muerden, verb(transitive, plural)).
 
-lex(vi, ladra, sg).
-lex(vi, ladran, pl).
+lex(ladra,   verb(intransitive, singular)).
+lex(ladran,  verb(intransitive, plural)).
 
-% --------------------------
-% Gramática usando DCG
-% --------------------------
 
-s --> np(Num), vp(Num).
+% GRAMMAR
 
-% Sintagma nominal: con o sin adjetivo
-np(Num) --> det(Gen, Num), n(Gen, Num).
-np(Num) --> det(Gen, Num), n(Gen, Num), adj(Gen, Num).
+s  --> np(_, _), vp(_).
 
-% Sintagma verbal: transitivo o intransitivo
-vp(Num) --> vi(Num).
-vp(Num) --> vt(Num), np(_).
+np(Gen, Num) --> det(Gen, Num), n(Gen, Num).
+np(Gen, Num) --> det(Gen, Num), n(Gen, Num), adj(Gen, Num).
 
-% Reglas léxicas enlazadas al vocabulario
-det(Gen, Num) --> [Word], { lex(det, Word, Gen-Num) }.
-n(Gen, Num) --> [Word], { lex(n, Word, Gen-Num) }.
-adj(Gen, Num) --> [Word], { lex(adj, Word, Gen-Num) }.
-vt(Num) --> [Word], { lex(vt, Word, Num) }.
-vi(Num) --> [Word], { lex(vi, Word, Num) }.
+vp(Num) --> v(transitive, Num), np(_, _).
+vp(Num) --> v(intransitive, Num).
 
-% --------------------------
-% Evaluación directa de oraciones
-% --------------------------
-
-oraciones([ 
-    oracion('Correcta 1', [la, estudiante, bonita, muerde, una, perra], true),
-    oracion('Correcta 2', [el, perro, muerde, unos, huesos], true),
-    oracion('Correcta 3', [una, perra, ladra], true),
-    oracion('Correcta 4', [los, perros, bonitos, muerden, las, perras], true),
-    oracion('Correcta 5', [un, estudiante, muerde, una, perra], true),
-    oracion('Correcta 6', [la, perra, bonita, ladra], true),
-    oracion('Incorrecta 1', [los, perras, muerden, un, estudiante], false),
-    oracion('Incorrecta 2', [un, perro, ladra, un, hueso], false),
-    oracion('Incorrecta 3', [una, bonita, perra], false),
-    oracion('Incorrecta 4', [perro, muerde, una, perra], false),
-    oracion('Incorrecta 5', [el, estudiantes, muerde, la, perra], false),
-    oracion('Incorrecta 6', [los, perros, bonitos, muerden, perras], false)
-]).
-
-evaluar_oraciones :- 
-    oraciones(Oraciones),
-    nl, writeln('--- Resultados de evaluación ---'), nl,
-    evaluar_lista(Oraciones),
-    nl, writeln('--- Fin de evaluación ---'), nl.
-
-evaluar_lista([]).
-evaluar_lista([oracion(Nombre, Palabras, Esperado)|Resto]) :- 
-    ( phrase(s, Palabras) -> 
-        Resultado = true
-    ; 
-        Resultado = false
-    ), 
-    format("~w: ~w => ~w (~w)~n", [Nombre, Palabras, Resultado, Esperado]),
-    evaluar_lista(Resto).
-
-:- evaluar_oraciones.
+det(Gen, Num) --> [Word], { lex(Word, det(Gen, Num)) }.
+n(Gen, Num) --> [Word], { lex(Word, noun(Gen, Num)) }.
+adj(Gen, Num) --> [Word], { lex(Word, adjective(Gen, Num)) }.
+v(Type, Num) --> [Word], { lex(Word, verb(Type, Num)) }.
